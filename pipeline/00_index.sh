@@ -6,10 +6,10 @@ if [ -f config.txt ]; then
 fi
 mkdir -p $GENOMEFOLDER
 pushd $GENOMEFOLDER
-# THIS IS EXAMPLE CODE FOR HOW TO DOWNLOAD DIRECT FROM FUNGIDB
+# DOWNLOAD DIRECT FROM FUNGIDB
 RELEASE=39
-SPECIES=AfumigatusAf293
-URL=https://fungidb.org/common/downloads/release-${RELEASE}/$SPECIES
+SPECIES=AfumigatusA1163
+URL=https://fungidb.org/a/service/raw-files/release-${RELEASE}/$SPECIES
 PREF=FungiDB-${RELEASE}_${SPECIES}
 FASTAFILE=${PREF}_Genome.fasta
 DOMAINFILE=${PREF}_InterproDomains.txt
