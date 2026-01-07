@@ -1,8 +1,16 @@
 Populations:
 
   All:
-    - Sample_Example_1
-
-  PopA:
-    - Sample_Example_1
-    - Sample_Example_2
+    - CEA10
+    - Del182
+    - Del_A
+    - Del_D
+    - Del_H
+    - Del_I
+    - Del_K
+    - Del_RG1
+    - Del_RG2
+    - Del_RG3
+    - WT_A
+    - WT_F
+    - WT_K
