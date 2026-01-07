@@ -1,13 +1,14 @@
 #!/usr/bin/bash -l
 module load samtools
-module load bwa
+module load bwa-mem2
+#module load bwa
 if [ -f config.txt ]; then
 	source config.txt
 fi
 mkdir -p $GENOMEFOLDER
 pushd $GENOMEFOLDER
 # DOWNLOAD DIRECT FROM FUNGIDB
-RELEASE=39
+RELEASE=68
 SPECIES=AfumigatusA1163
 URL=https://fungidb.org/a/service/raw-files/release-${RELEASE}/$SPECIES
 PREF=FungiDB-${RELEASE}_${SPECIES}
@@ -30,8 +31,13 @@ fi
 if [[ ! -f $FASTAFILE.fai || $FASTAFILE -nt $FASTAFILE.fai ]]; then
 	samtools faidx $FASTAFILE
 fi
+if [[ ! -f $FASTAFILE.bwt.2bit.64 || $FASTAFILE -nt $FASTAFILE.bwt.2bit.64 ]]; then
+	bwa-mem2 index $FASTAFILE
+	ls -l $FASTAFILE*
+fi
 if [[ ! -f $FASTAFILE.bwt || $FASTAFILE -nt $FASTAFILE.bwt ]]; then
 	bwa index $FASTAFILE
+	ls -l $FASTAFILE*
 fi
 
 DICT=$(basename $FASTAFILE .fasta)".dict"
