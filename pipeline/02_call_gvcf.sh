@@ -50,14 +50,14 @@ do
   if [[ ! -f "${GVCF}" || "${ALNFILE}" -nt "${GVCF}" ]]; then
 #    samtools view -O BAM -o "${SCRATCH}/${STRAIN}.bam" --threads "${CPU}" "${ALNFILE}"
 #    samtools index "${SCRATCH}/${STRAIN}.bam"
-      time gatk --java-options -Xmx"${MEM}" HaplotypeCaller \
+      time gatk --java-options "-Xmx${MEM}" HaplotypeCaller \
       --emit-ref-confidence GVCF --sample-ploidy 1 \
       --input "${ALNFILE}" --reference "${REFGENOME}" \
-      --output "${GVCF}" --native-pair-hmm-threads "${CPU}" --sample-name $STRAIN \
+      --output "${GVCF}" --native-pair-hmm-threads "${CPU}" --sample-name "${STRAIN}" \
       -G StandardAnnotation -G AS_StandardAnnotation -G StandardHCAnnotation
   fi
   bgzip --threads "${CPU}" -f "${GVCF}"
   tabix "${GVCF}.gz"
 done
-
+unset IFS
 date
