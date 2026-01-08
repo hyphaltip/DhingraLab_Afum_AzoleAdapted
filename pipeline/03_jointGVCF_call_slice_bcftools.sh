@@ -3,9 +3,9 @@
 hostname
 MEM=24g
 BCFTOOLSCPU=4
-module load java
+module unload java
 module load picard
-module load gatk/4
+module load gatk/4.6.1.0
 module load bcftools
 module load parallel
 module load yq
@@ -49,8 +49,8 @@ if [ ! $CPU ]; then
     CPU=2
 fi
 if [[ $(ls $GVCFFOLDER | grep -c -P "\.g.vcf$") -gt "0" ]]; then
-   parallel -j $CPU bgzip {} ::: $GVCFFOLDER/*.g.vcf
-  parallel -j $CPU tabix -f {} ::: $GVCFFOLDER/*.g.vcf.gz
+	parallel -j $CPU bgzip {} ::: $GVCFFOLDER/*.g.vcf
+	parallel -j $CPU tabix -f {} ::: $GVCFFOLDER/*.g.vcf.gz
 fi
 
 if [[ -z $POPYAML || ! -s $POPYAML ]]; then

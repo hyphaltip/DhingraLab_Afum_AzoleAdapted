@@ -1,10 +1,11 @@
 #!/usr/bin/bash -l
 #SBATCH -N 1 -n 1 -c 16 --mem 32gb --out logs/make_gvcf.%a.log --time 48:00:00
 
+module unload java
 module load picard
-module load java/13
-module load gatk/4.6.0.0
+module load gatk/4.6.2.0
 module load bcftools
+module load workspace/scratch
 
 MEM=32g
 SAMPFILE=samples.csv
@@ -21,41 +22,42 @@ fi
 mkdir -p $GVCFFOLDER
 CPU=1
 if [ $SLURM_CPUS_ON_NODE ]; then
- CPU=$SLURM_CPUS_ON_NODE
+  CPU=$SLURM_CPUS_ON_NODE
 fi
 N=${SLURM_ARRAY_TASK_ID}
 
 if [ ! $N ]; then
- N=$1
+  N=$1
 fi
 
 if [ ! $N ]; then
- echo "need to provide a number by --array slurm or on the cmdline"
- exit
+  echo "need to provide a number by --array slurm or on the cmdline"
+  exit
 fi
 
 hostname
 date
 IFS=,
-cat $SAMPFILE | sed -n ${N}p | while read STRAIN SAMPID
+tail -n +2 $SAMPFILE | sed -n ${N}p | while read STRAIN SAMPID
 do
-  # BEGIN THIS PART IS PROJECT SPECIFIC LIKELY
-  # END THIS PART IS PROJECT SPECIFIC LIKELY
   echo "STRAIN is $STRAIN"
-  GVCF=$GVCFFOLDER/$STRAIN.g.vcf
-  ALNFILE=$ALNFOLDER/$STRAIN.$HTCEXT
-  if [ -s $GVCF.gz ]; then
-    echo "Skipping $STRAIN - Already called $STRAIN.g.vcf.gz"
+  GVCF="${GVCFFOLDER}/${STRAIN}.g.vcf"
+  ALNFILE="${ALNFOLDER}/${STRAIN}.${HTCEXT}"
+  if [ -s "${GVCF}.gz" ]; then
+    echo "Skipping ${STRAIN} - Already called ${STRAIN}.g.vcf.gz"
     exit
   fi
-  if [[ ! -f $GVCF || $ALNFILE -nt $GVCF ]]; then
-      time gatk --java-options -Xmx${MEM} HaplotypeCaller \
-   	  --emit-ref-confidence GVCF --sample-ploidy 1 \
-   	  --input $ALNFILE --reference $REFGENOME \
-   	  --output $GVCF --native-pair-hmm-threads $CPU --sample-name $STRAIN \
-	  -G StandardAnnotation -G AS_StandardAnnotation -G StandardHCAnnotation
- fi
- bgzip --threads $CPU -f $GVCF
- tabix $GVCF.gz
+  if [[ ! -f "${GVCF}" || "${ALNFILE}" -nt "${GVCF}" ]]; then
+#    samtools view -O BAM -o "${SCRATCH}/${STRAIN}.bam" --threads "${CPU}" "${ALNFILE}"
+#    samtools index "${SCRATCH}/${STRAIN}.bam"
+      time gatk --java-options -Xmx"${MEM}" HaplotypeCaller \
+      --emit-ref-confidence GVCF --sample-ploidy 1 \
+      --input "${ALNFILE}" --reference "${REFGENOME}" \
+      --output "${GVCF}" --native-pair-hmm-threads "${CPU}" --sample-name $STRAIN \
+      -G StandardAnnotation -G AS_StandardAnnotation -G StandardHCAnnotation
+  fi
+  bgzip --threads "${CPU}" -f "${GVCF}"
+  tabix "${GVCF}.gz"
 done
+
 date

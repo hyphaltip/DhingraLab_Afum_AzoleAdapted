@@ -1,11 +1,11 @@
 #!/usr/bin/bash
-#SBATCH --mem 24G --nodes 1 --ntasks 4 -J slice.GVCFGeno --out logs/GVCFGenoGATK4.allsites.slice_%a.%A.log  -a 1-23
+#SBATCH --mem 24G -N 1 -n 1 -c 4 -J slice.GVCFGeno --out logs/GVCFGenoGATK4.allsites.slice_%a.%A.log  -a 1-23
 hostname
 MEM=24g
 module unload R
 module unload java
 module load picard
-module load gatk/4.6.0.0
+module load gatk/4.6.1.0
 module load bcftools
 module load parallel
 module load yq
@@ -75,68 +75,68 @@ do
 	echo "$STEM is stem; GENOVCFOUT=$STEM.all.vcf POPNAME=$POPNAME slice=$SLICEVCF"
 	mkdir -p $TEMPDIR
 	if [ ! -f $GENOVCFOUT.gz ]; then
-	    if [ ! -f $GENOVCFOUT ]; then
-		DB=$TEMPDIR/${GVCFFOLDER}_slice_$N
-		rm -rf $DB
+		if [ ! -f $GENOVCFOUT ]; then
+			DB=$TEMPDIR/${GVCFFOLDER}_slice_$N
+			rm -rf $DB
 
-		echo gatk  --java-options "-Xmx$MEM -Xms$MEM" GenomicsDBImport --consolidate --merge-input-intervals \
-		      --genomicsdb-workspace-path $DB $FILES $INTERVALS --tmp-dir $TEMPDIR --reader-threads $CPU
+			echo gatk  --java-options "-Xmx$MEM -Xms$MEM" GenomicsDBImport --consolidate --merge-input-intervals \
+			--genomicsdb-workspace-path $DB $FILES $INTERVALS --tmp-dir $TEMPDIR --reader-threads $CPU
 
-		gatk  --java-options "-Xmx$MEM -Xms$MEM" GenomicsDBImport --consolidate --merge-input-intervals \
-		      --genomicsdb-workspace-path $DB $FILES $INTERVALS --tmp-dir $TEMPDIR --reader-threads $CPU
+			gatk  --java-options "-Xmx$MEM -Xms$MEM" GenomicsDBImport --consolidate --merge-input-intervals \
+			--genomicsdb-workspace-path $DB $FILES $INTERVALS --tmp-dir $TEMPDIR --reader-threads $CPU
 
-		time gatk  --java-options "-Xmx$MEM -Xms$MEM" GenotypeGVCFs --reference $REFGENOME --output $GENOVCFOUT \
-		     -V gendb://$DB --tmp-dir $TEMPDIR -all-sites  -G StandardAnnotation -G AS_StandardAnnotation $INTERVALS
+			time gatk  --java-options "-Xmx$MEM -Xms$MEM" GenotypeGVCFs --reference $REFGENOME --output $GENOVCFOUT \
+			-V gendb://$DB --tmp-dir $TEMPDIR -all-sites  -G StandardAnnotation -G AS_StandardAnnotation $INTERVALS
 		ls -l $DB
 		rm -rf $DB
-	    fi
-	    if [ -f $GENOVCFOUT ]; then
-	    	bgzip $GENOVCFOUT
-	    	tabix $GENOVCFOUT.gz
-	    fi
+		fi
+		if [ -f $GENOVCFOUT ]; then
+			bgzip $GENOVCFOUT
+			tabix $GENOVCFOUT.gz
+		fi
 	fi
 	if [[ ! -f $GENOALLVCFOUT || $GENOVCFOUT.gz -nt $GENOALLVCFOUT ]]; then
 
-	    module load vcftools
-	    vcftools --gzvcf $GENOVCFOUT.gz --max-maf 0 --recode --stdout |  bgzip -c > $SCRATCH/invariant.vcf.gz
-	    #	bcftools view -i "MAF[0] <= 0" -Oz -o $SCRATCH/invariant.vcf.gz $GENOVCFOUT.gz
-	    vcftools --gzvcf $GENOVCFOUT.gz --mac 1 --recode --stdout | bgzip -c > $SCRATCH/variant.vcf.gz
-	    #	bcftools view -i "MAC == 1" -Oz -o $SCRATCH/invariant.vcf.gz $GENOVCFOUT.gz
-	    module unload vcftools
-	    tabix $SCRATCH/invariant.vcf.gz
-	    tabix $SCRATCH/variant.vcf.gz
-	    bcftools concat --allow-overlaps $SCRATCH/variant.vcf.gz $SCRATCH/invariant.vcf.gz \
-		     -O z -o $GENOALLVCFOUT
-	    tabix $GENOALLVCFOUT
+		module load vcftools
+		vcftools --gzvcf $GENOVCFOUT.gz --max-maf 0 --recode --stdout |  bgzip -c > $SCRATCH/invariant.vcf.gz
+		#	bcftools view -i "MAF[0] <= 0" -Oz -o $SCRATCH/invariant.vcf.gz $GENOVCFOUT.gz
+		vcftools --gzvcf $GENOVCFOUT.gz --mac 1 --recode --stdout | bgzip -c > $SCRATCH/variant.vcf.gz
+		#	bcftools view -i "MAC == 1" -Oz -o $SCRATCH/invariant.vcf.gz $GENOVCFOUT.gz
+		module unload vcftools
+		tabix $SCRATCH/invariant.vcf.gz
+		tabix $SCRATCH/variant.vcf.gz
+		bcftools concat --allow-overlaps $SCRATCH/variant.vcf.gz $SCRATCH/invariant.vcf.gz \
+			-O z -o $GENOALLVCFOUT
+		tabix $GENOALLVCFOUT
 	fi
 	if [[ ! -f $SELECTSNP.gz || $GENOVCFOUT.gz -nt $SELECTSNP.gz ]]; then
 
-	    TYPE=SNP
-	    gatk SelectVariants \
-		 -R $REFGENOME \
-		 --variant $GENOVCFOUT.gz \
-		 -O $STEM.$TYPE.vcf \
-		 --restrict-alleles-to BIALLELIC \
+		TYPE=SNP
+		gatk SelectVariants \
+		-R $REFGENOME \
+		--variant $GENOVCFOUT.gz \
+		-O $STEM.$TYPE.vcf \
+		--restrict-alleles-to BIALLELIC \
 		--select-type-to-include $TYPE --create-output-variant-index false
 
-	    bgzip -f $STEM.$TYPE.vcf
-	    tabix $STEM.$TYPE.vcf.gz
-	    # create a filtered VCF containing only variant sites
-	    gatk VariantFiltration --output $FILTERSNP --tmp-dir $TEMPDIR \
-		 --variant $STEM.$TYPE.vcf.gz -R $REFGENOME \
-		 --cluster-window-size 10  \
-		 --filter-expression "QD < 2.0" --filter-name QualByDepth \
-		 --filter-expression "MQ < 40.0" --filter-name MapQual \
-		 --filter-expression "SOR > 3.0" --filter-name StrandOddsRatio \
-		 --filter-expression "FS > 60.0" --filter-name FisherStrandBias \
-		 --missing-values-evaluate-as-failing --create-output-variant-index false
-	    bgzip $FILTERSNP
-	    tabix $FILTERSNP.gz
-	    gatk SelectVariants -R $REFGENOME \
-		 --variant $FILTERSNP.gz \
-		 --output $SELECTSNP \
-		 --exclude-filtered --create-output-variant-index false
-	    bgzip $SELECTSNP
-	    tabix $SELECTSNP.gz
+		bgzip -f $STEM.$TYPE.vcf
+		tabix $STEM.$TYPE.vcf.gz
+		# create a filtered VCF containing only variant sites
+		gatk VariantFiltration --output $FILTERSNP --tmp-dir $TEMPDIR \
+		--variant $STEM.$TYPE.vcf.gz -R $REFGENOME \
+		--cluster-window-size 10  \
+		--filter-expression "QD < 2.0" --filter-name QualByDepth \
+		--filter-expression "MQ < 40.0" --filter-name MapQual \
+		--filter-expression "SOR > 3.0" --filter-name StrandOddsRatio \
+		--filter-expression "FS > 60.0" --filter-name FisherStrandBias \
+		--missing-values-evaluate-as-failing --create-output-variant-index false
+		bgzip $FILTERSNP
+		tabix $FILTERSNP.gz
+		gatk SelectVariants -R $REFGENOME \
+		--variant $FILTERSNP.gz \
+		--output $SELECTSNP \
+		--exclude-filtered --create-output-variant-index false
+		bgzip $SELECTSNP
+		tabix $SELECTSNP.gz
 	fi
 done

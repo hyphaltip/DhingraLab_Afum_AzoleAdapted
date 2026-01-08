@@ -6,8 +6,9 @@
 
 hostname
 MEM=24g
+module unload java
 module load picard
-module load gatk/4.6.0.0
+module load gatk/4.6.1.0
 module load bcftools
 module load parallel
 module load yq
@@ -50,8 +51,8 @@ if [ ! $CPU ]; then
     CPU=2
 fi
 if [[ $(ls $GVCFFOLDER | grep -c -P "\.g.vcf$") -gt "0" ]]; then
-   parallel -j $CPU bgzip {} ::: $GVCFFOLDER/*.g.vcf
-  parallel -j $CPU tabix -f {} ::: $GVCFFOLDER/*.g.vcf.gz
+	parallel -j $CPU bgzip {} ::: $GVCFFOLDER/*.g.vcf
+	parallel -j $CPU tabix -f {} ::: $GVCFFOLDER/*.g.vcf.gz
 fi
 
 if [[ -z $POPYAML || ! -s $POPYAML ]]; then
@@ -77,37 +78,37 @@ do
 	SELECTINDEL=$STEM.INDEL.selected.vcf
 	echo "$STEM is stem; GENOVCFOUT=$STEM.all.vcf POPNAME=$POPNAME slice=$SLICEVCF"
 	if [ ! -f $GENOVCFOUT.gz ]; then
-	    if [ ! -f $GENOVCFOUT ]; then
-		DB=$TEMPDIR/${GVCFFOLDER}_slice_$N
-		rm -rf $DB
-		gatk  --java-options "-Xmx$MEM -Xms$MEM" GenomicsDBImport --consolidate --merge-input-intervals --genomicsdb-workspace-path $DB $FILES $INTERVALS --tmp-dir $TEMPDIR --reader-threads $CPU
-		#--reader-threads $CPU
-		#gatk  --java-options "-Xmx$MEM -Xms$MEM" GenomicsDBImport --genomicsdb-workspace-path $DB $FILES $INTERVALS  --reader-threads $CPU
-		time gatk GenotypeGVCFs --reference $REFGENOME --output $GENOVCFOUT -V gendb://$DB --tmp-dir $TEMPDIR
-		ls -l $TEMPDIR
-		rm -rf $DB
-	    fi
-	    if [ -f $GENOVCFOUT ]; then
-	    	bgzip $GENOVCFOUT
-	    	tabix $GENOVCFOUT.gz
-	    fi
+		if [ ! -f $GENOVCFOUT ]; then
+			DB=$TEMPDIR/${GVCFFOLDER}_slice_$N
+			rm -rf $DB
+			gatk  --java-options "-Xmx$MEM -Xms$MEM" GenomicsDBImport --consolidate --merge-input-intervals --genomicsdb-workspace-path $DB $FILES $INTERVALS --tmp-dir $TEMPDIR --reader-threads $CPU
+			#--reader-threads $CPU
+			#gatk  --java-options "-Xmx$MEM -Xms$MEM" GenomicsDBImport --genomicsdb-workspace-path $DB $FILES $INTERVALS  --reader-threads $CPU
+			time gatk GenotypeGVCFs --reference $REFGENOME --output $GENOVCFOUT -V gendb://$DB --tmp-dir $TEMPDIR
+			ls -l $TEMPDIR
+			rm -rf $DB
+		fi
+		if [ -f $GENOVCFOUT ]; then
+			bgzip $GENOVCFOUT
+			tabix $GENOVCFOUT.gz
+		fi
 	fi
 	TYPE=SNP
 	echo "VCF = $STEM.$TYPE.vcf.gz"
 	if [[ ! -f $STEM.$TYPE.vcf.gz ]]; then
-	    gatk SelectVariants \
+		gatk SelectVariants \
 		-R $REFGENOME \
 		--variant $GENOVCFOUT.gz \
 		-O $STEM.$TYPE.vcf \
 		--restrict-alleles-to BIALLELIC \
 		--select-type-to-include $TYPE --create-output-variant-index false
 
-	    bgzip $STEM.$TYPE.vcf
-	    tabix $STEM.$TYPE.vcf.gz
+		bgzip $STEM.$TYPE.vcf
+		tabix $STEM.$TYPE.vcf.gz
 	fi
 
 	if [[ ! -f $FILTERSNP.gz || $STEM.$TYPE.vcf.gz -nt $FILTERSNP.gz ]]; then
-	    gatk VariantFiltration --output $FILTERSNP \
+		gatk VariantFiltration --output $FILTERSNP \
 		--variant $STEM.$TYPE.vcf.gz -R $REFGENOME \
 		--cluster-window-size 10  \
 		--filter-expression "QD < 2.0" --filter-name QualByDepth \
@@ -120,32 +121,32 @@ do
 	#	--filter-expression "MQRankSum < -12.5" --filter-name MapQualityRankSum \
 	#	--filter-expression "ReadPosRankSum < -8.0" --filter-name ReadPosRank \
 
-	    bgzip $FILTERSNP
-	    tabix $FILTERSNP.gz
+		bgzip $FILTERSNP
+		tabix $FILTERSNP.gz
 	fi
 
 	if [[ ! -f $SELECTSNP.gz || $FILTERSNP.gz -nt $SELECTSNP.gz ]]; then
-	    gatk SelectVariants -R $REFGENOME \
+		gatk SelectVariants -R $REFGENOME \
 		--variant $FILTERSNP.gz \
 		--output $SELECTSNP \
 		--exclude-filtered --create-output-variant-index false
-	    bgzip $SELECTSNP
-	    tabix $SELECTSNP.gz
+		bgzip $SELECTSNP
+		tabix $SELECTSNP.gz
 	fi
 
 	TYPE=INDEL
 	if [ ! -f $STEM.$TYPE.vcf.gz ]; then
-	    gatk SelectVariants \
-	        -R $REFGENOME \
-	        --variant $GENOVCFOUT.gz \
-	        -O $STEM.$TYPE.vcf  --select-type-to-include MIXED --select-type-to-include MNP \
-	        --select-type-to-include $TYPE --create-output-variant-index false
-	    bgzip $STEM.$TYPE.vcf
-	    tabix $STEM.$TYPE.vcf.gz
+		gatk SelectVariants \
+			-R $REFGENOME \
+			--variant $GENOVCFOUT.gz \
+			-O $STEM.$TYPE.vcf  --select-type-to-include MIXED --select-type-to-include MNP \
+			--select-type-to-include $TYPE --create-output-variant-index false
+		bgzip $STEM.$TYPE.vcf
+		tabix $STEM.$TYPE.vcf.gz
 	fi
 
 	if [[ ! -f $FILTERINDEL.gz || $STEM.$TYPE.vcf.gz -nt $FILTERINDEL.gz ]]; then
-	    gatk VariantFiltration --output $FILTERINDEL \
+		gatk VariantFiltration --output $FILTERINDEL \
 		--variant $STEM.$TYPE.vcf.gz -R $REFGENOME \
 		--cluster-window-size 10  -filter "QD < 2.0" --filter-name QualByDepth \
 		-filter "SOR > 10.0" --filter-name StrandOddsRatio \
@@ -156,16 +157,16 @@ do
 	#	-filter "ReadPosRankSum < -20.0" --filter-name ReadPosRank \
 	#	-filter "MQRankSum < -12.5" --filter-name MapQualityRankSum \
 
-	    bgzip $FILTERINDEL
-	    tabix $FILTERINDEL.gz
+		bgzip $FILTERINDEL
+		tabix $FILTERINDEL.gz
 	fi
 
 	if [[ ! -f $SELECTINDEL.gz || $FILTERINDEL.gz -nt $SELECTINDEL.gz ]]; then
-	    gatk SelectVariants -R $REFGENOME \
+		gatk SelectVariants -R $REFGENOME \
 		--variant $FILTERINDEL.gz \
 		--output $SELECTINDEL \
 		--exclude-filtered --create-output-variant-index false
-	    bgzip $SELECTINDEL
-	    tabix $SELECTINDEL.gz
+		bgzip $SELECTINDEL
+		tabix $SELECTINDEL.gz
 	fi
 done
