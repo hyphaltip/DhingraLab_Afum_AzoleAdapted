@@ -2,7 +2,7 @@
 #SBATCH --mem=64G -N 1 -n 1 -c 2 --out logs/snpEff.log
 
 # this module defines SNPEFFJAR and SNPEFFDIR
-module load snpEff/4.3t
+module load snpEff
 module load bcftools
 module load yq
 
@@ -23,6 +23,10 @@ fi
 FASTAGENOMEFILE=$REFGENOME
 GFFGENOMEFILE=$GFFGENOME
 echo "GFF is $GFFGENOMEFILE"
+if [[ ! -f $GFFGENOMEFILE || ! -s $GFFGENOMEFILE ]]; then
+  echo "Cannot find GFF genome file $GFFGENOMEFILE - please set in config.txt"
+  exit
+fi
 if [ -z $SNPEFFJAR ]; then
  echo "need to defined \$SNPEFFJAR in module or config.txt"
  exit
@@ -48,19 +52,20 @@ if [ ! -e $SNPEFFOUT/$snpEffConfig ]; then
 	echo -e "\t$SNPEFFGENOME.chromosomes: $chroms" >> $SNPEFFOUT/$snpEffConfig
 	# FIXME FIXME
 	# THIS WOULD NEED SPEIFIC FIX BY USER - IN A.fumigatus the MT contig is called mito_A_fumigatus_Af293
-	echo -e "\t$SNPEFFGENOME.Supercontig_1.1.codonTable : Alternative_Yeast_Nuclear" >> $SNPEFFOUT/$snpEffConfig
-	echo -e "\t$SNPEFFGENOME.Supercontig_1.2.codonTable : Alternative_Yeast_Nuclear" >> $SNPEFFOUT/$snpEffConfig
-	echo -e "\t$SNPEFFGENOME.Supercontig_1.3.codonTable : Alternative_Yeast_Nuclear" >> $SNPEFFOUT/$snpEffConfig
-	echo -e "\t$SNPEFFGENOME.Supercontig_1.4.codonTable : Alternative_Yeast_Nuclear" >> $SNPEFFOUT/$snpEffConfig
-	echo -e "\t$SNPEFFGENOME.Supercontig_1.5.codonTable : Alternative_Yeast_Nuclear" >> $SNPEFFOUT/$snpEffConfig
-	echo -e "\t$SNPEFFGENOME.Supercontig_1.6.codonTable : Alternative_Yeast_Nuclear" >> $SNPEFFOUT/$snpEffConfig
-	echo -e "\t$SNPEFFGENOME.Supercontig_1.7.codonTable : Alternative_Yeast_Nuclear" >> $SNPEFFOUT/$snpEffConfig
-	echo -e "\t$SNPEFFGENOME.Supercontig_1.8.codonTable : Alternative_Yeast_Nuclear" >> $SNPEFFOUT/$snpEffConfig
-	echo -e "\t$SNPEFFGENOME.MT_CBS_6936.codonTable : Mold_Mitochondrial" >> $SNPEFFOUT/$snpEffConfig
+#	echo -e "\t$SNPEFFGENOME.Supercontig_1.1.codonTable : Alternative_Yeast_Nuclear" >> $SNPEFFOUT/$snpEffConfig
+#	echo -e "\t$SNPEFFGENOME.Supercontig_1.2.codonTable : Alternative_Yeast_Nuclear" >> $SNPEFFOUT/$snpEffConfig
+#	echo -e "\t$SNPEFFGENOME.Supercontig_1.3.codonTable : Alternative_Yeast_Nuclear" >> $SNPEFFOUT/$snpEffConfig
+#	echo -e "\t$SNPEFFGENOME.Supercontig_1.4.codonTable : Alternative_Yeast_Nuclear" >> $SNPEFFOUT/$snpEffConfig
+#	echo -e "\t$SNPEFFGENOME.Supercontig_1.5.codonTable : Alternative_Yeast_Nuclear" >> $SNPEFFOUT/$snpEffConfig
+#	echo -e "\t$SNPEFFGENOME.Supercontig_1.6.codonTable : Alternative_Yeast_Nuclear" >> $SNPEFFOUT/$snpEffConfig
+#	echo -e "\t$SNPEFFGENOME.Supercontig_1.7.codonTable : Alternative_Yeast_Nuclear" >> $SNPEFFOUT/$snpEffConfig
+#	echo -e "\t$SNPEFFGENOME.Supercontig_1.8.codonTable : Alternative_Yeast_Nuclear" >> $SNPEFFOUT/$snpEffConfig
+#	echo -e "\t$SNPEFFGENOME.MT_CBS_6936.codonTable : Mold_Mitochondrial" >> $SNPEFFOUT/$snpEffConfig
 
 	mkdir -p $SNPEFFOUT/data/$SNPEFFGENOME
 	pigz -c $GFFGENOMEFILE > $SNPEFFOUT/data/$SNPEFFGENOME/genes.gff.gz
 	rsync -aL $REFGENOME $SNPEFFOUT/data/$SNPEFFGENOME/sequences.fa
+  perl -i -p -e 's/>(\S+)\s+.*/>\1/' $SNPEFFOUT/data/$SNPEFFGENOME/sequences.fa
 	java -Xmx$MEM -jar $SNPEFFJAR build -datadir $TOPFOLDER/$SNPEFFOUT/data -c $SNPEFFOUT/$snpEffConfig -gff3 -noCheckCds -noCheckProtein -nodownload -v $SNPEFFGENOME
 fi
 
@@ -111,6 +116,7 @@ makeMatrix() {
   module unload pyvcf
   popd
 }
+
 source $(which env_parallel.bash)
 export -f makeMatrix
 env_parallel -j $CPU --env _ makeMatrix ::: $(yq eval '.Populations | keys' $POPYAML | perl -p -e 's/^\s*\-\s*//' )
